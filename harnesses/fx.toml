@@ -1,0 +1,108 @@
+name = "fx"
+repo = "https://github.com/vercel-labs/fx"
+version = "0.0.17"
+command = ["fx"]
+instructions = ["AGENTS.md"]  # What the agent reads from the workspace.
+input = "stdin"
+args = ["ask", "--full-access", "--model", "${model}"]
+
+[install]  # The image: the official installer, frozen in installers/ (see images.py).
+installer = "https://fx.sh/setup.sh"
+command = 'curl -fsSL ${installers}/fx.sh | bash -s -- v${version}'
+
+[variables]
+headers = "{}"  # The provider's extra headers: see [settings.headers].
+
+[apis.chat]
+
+# Each model's `reasoning_efforts` maps fx's levels to the request's
+# `reasoning_effort`: for a model outside its catalog, fx sends no effort without it.
+[[files]]
+path = "${home}/.fx/settings.json"
+text = '''
+{
+  "provider": "suite",
+  "models": {"suite": ${model_json}},
+  "providers": {"suite": {"protocol": "openai-chat-completions", "base_url": "${provider_url}/v1", "auth": {"type": "bearer", "env": "SUITE_API_KEY"}, "headers": ${headers},
+    "model_metadata": {
+      ${model_json}: {"context_window": ${context_window}, "max_output_tokens": ${max_output_tokens}, "supports_tool_use": true, "supports_vision": true, "reasoning_efforts": {"low": {"reasoning_effort": "low"}, "medium": {"reasoning_effort": "medium"}, "high": {"reasoning_effort": "high"}}},
+      ${model_b_json}: {"context_window": ${context_window}, "max_output_tokens": ${max_output_tokens}, "supports_tool_use": true, "supports_vision": true, "reasoning_efforts": {"low": {"reasoning_effort": "low"}, "medium": {"reasoning_effort": "medium"}, "high": {"reasoning_effort": "high"}}}
+    }}},
+  "permission_mode": "full-access", "yolo_acknowledged": true, "auto_upgrade": false
+}
+'''
+
+# fx runs MCP tools through its toolbox tool, after a search of the server.
+[[mcp.bootstrap]]
+name = "toolbox"
+arguments = { search = "", server = "${server}" }
+[mcp.route]
+tool = "toolbox"
+find = '"name":"([^"]+)","server":"${server}"'
+arguments = { run = "${route}", arguments = "${arguments}" }
+[[mcp.stdio.files]]
+path = "${home}/.fx/mcp.json"
+json = { mcpServers = { "${server}" = { command = "${python}", args = ["${fixture}", "mcp", "${fixture_dir}", "${server}"] } } }
+[[mcp.http.files]]
+path = "${home}/.fx/mcp.json"
+json = { mcpServers = { "${server}" = { type = "http", url = "${server_url}" } } }
+
+# The interactive UI.
+[tui]
+args = ["--model", "${model}"]
+
+[native.shell]
+name = "shell"
+arguments = { action = "run", command = "${command}" }
+[native.read]
+name = "read_file"
+arguments = { path = "${path}" }
+
+[native.write]
+name = "write_file"
+arguments = { path = "${path}", content = "${content}" }
+
+[native.edit]
+name = "edit_file"
+arguments = { path = "${path}", old_string = "${old}", new_string = "${new}" }
+
+# A sub-agent starts with a message, and reports when the parent waits for it.
+[[native.subagent]]
+name = "subagent"
+arguments = { action = "message", agent = "suite", message = "${prompt}" }
+[[native.subagent]]
+name = "subagent"
+arguments = { action = "wait", agent = "suite" }
+[settings.continue]
+args = ["--resume", "last"]
+[settings.effort]
+args = ["--effort", "${value}"]
+# Replaces fx's base prompt; tool and project context stay.
+# It asks before each action.
+[settings.normal-mode]
+base_args = ["ask", "--ask", "--model", "${model}"]
+[settings.system-prompt]
+args = ["--system", "${value}"]
+
+# fx takes a header's value only from the environment.
+[settings.headers]
+variables = { headers = '{"X-Suite-Header": {"env": "SUITE_HEADER"}}' }
+environment = { SUITE_HEADER = "${value}" }
+
+# The project's own MCP config, as a cloned repository can hold it.
+[[settings.workspace-mcp.files]]
+path = "${workspace}/.mcp.json"
+json = { mcpServers = { "${value}" = { command = "${python}", args = ["${fixture}", "mcp", "${fixture_dir}", "${value}"] } } }
+# The user approves the project's server, as `fx mcp approve NAME` records it.
+[[settings.workspace-trust.files]]
+path = "${home}/.fx/settings.json"
+merge = true
+json = { workspaces = { "${workspace}" = { enabledMcpjsonServers = ["${value}"] } } }
+
+# Machine-readable output, for scripts: cli.json judges it.
+[settings.json]
+args = ["--json"]
+
+[unsupported]
+read-only = "fx has no read-only mode: its permission modes are ask, auto and full-access"
+mcp-sse = "fx never connects a server of type \"sse\": it has no client for the older SSE transport"

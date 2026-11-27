@@ -1,0 +1,59 @@
+# The fake agent of the unit tests. Its defects are added to its args.
+name = "fake"
+# The tests run it with their own Python.
+command = ["python3", "fake_harness.py"]
+instructions = ["AGENTS.md"]
+args = ["--api", "${api}", "--base", "${provider_url}/v1", "--model", "${model}", "--prompt-file", "${prompt_file}"]
+[[files]]
+path = "${home}/.fake.json"
+text = '{"name": "fake"}'
+[apis.chat.variables]
+api = "chat"
+[apis.responses.variables]
+api = "responses"
+[apis.anthropic.variables]
+api = "anthropic"
+[native.shell]
+name = "shell"
+arguments = { command = "${command}" }
+[native.read]
+name = "read"
+arguments = { path = "${path}" }
+[native.write]
+name = "write"
+arguments = { path = "${path}", content = "${content}" }
+[native.edit]
+name = "edit"
+arguments = { path = "${path}", old = "${old}", new = "${new}" }
+[native.subagent]
+name = "agent"
+arguments = { prompt = "${prompt}" }
+[mcp.route]
+tool = "mcp_call"
+find = '(mcp__${server}__suite_fixture)\b'
+arguments = { tool = "${route}", arguments = "${arguments}" }
+[mcp.stdio]
+args = ["--mcp-stdio", "${server}", "${python}", "${fixture}", "${fixture_dir}"]
+[mcp.http]
+args = ["--mcp-http", "${server}", "${server_url}"]
+[mcp.sse]
+args = ["--mcp-sse", "${server}", "${server_url}"]
+[settings.continue]
+args = ["--continue"]
+[settings.temperature]
+args = ["--temperature", "${value}"]
+[settings.system-prompt]
+args = ["--system", "${value}"]
+[settings.headers]
+args = ["--header", "X-Suite-Header: ${value}"]
+[settings.read-only]
+args = ["--read-only"]
+[[settings.workspace-mcp.files]]
+path = "${workspace}/.fake-mcp.json"
+json = { servers = { "${value}" = ["${python}", "${fixture}", "mcp", "${fixture_dir}", "${value}"] } }
+[settings.json]
+args = ["--json"]
+[settings.workspace-trust]
+args = ["--workspace-trusted"]
+[tui]
+args = ["--tui", "--api", "${api}", "--base", "${provider_url}/v1", "--model", "${model}"]

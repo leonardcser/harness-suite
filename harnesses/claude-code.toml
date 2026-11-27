@@ -1,0 +1,97 @@
+name = "claude-code"
+title = "Claude Code"
+repo = "https://github.com/anthropics/claude-code"
+version = "2.1.332"
+command = ["claude"]
+instructions = ["CLAUDE.md"]  # What the agent reads from the workspace.
+input = "stdin"
+args = ["--print", "--model", "${model}", "--dangerously-skip-permissions"]
+
+[install]  # The image: the official installer, frozen in installers/ (see images.py).
+installer = "https://claude.ai/install.sh"
+command = 'curl -fsSL ${installers}/claude-code.sh | bash -s -- ${version}'
+
+[environment]
+ANTHROPIC_API_KEY = "suite-placeholder"
+ANTHROPIC_BASE_URL = "${provider_url}"
+CLAUDE_CODE_MAX_OUTPUT_TOKENS = "${max_output_tokens_json}"
+
+[apis.anthropic]
+
+[[files]]
+path = "${home}/.claude.json"
+once = true
+json = { hasCompletedOnboarding = true, theme = "dark", hasSeenAutoDefaultNudge = true, hasSeenAutoDefaultNotice = true, bypassPermissionsModeAccepted = true, customApiKeyResponses = { approved = ["suite-placeholder"], rejected = [] }, projects = { "${workspace}" = { hasTrustDialogAccepted = true } } }
+
+[mcp]
+args = ["--mcp-config", "${home}/suite-mcp.json", "--strict-mcp-config"]
+# Claude Code defers MCP tools: the model loads one with its ToolSearch tool.
+[[mcp.bootstrap]]
+name = "ToolSearch"
+arguments = { query = "select:mcp__${server}__suite_fixture", max_results = 1 }
+[[mcp.stdio.files]]
+path = "${home}/suite-mcp.json"
+json = { mcpServers = { "${server}" = { command = "${python}", args = ["${fixture}", "mcp", "${fixture_dir}", "${server}"] } } }
+[[mcp.http.files]]
+path = "${home}/suite-mcp.json"
+json = { mcpServers = { "${server}" = { type = "http", url = "${server_url}" } } }
+[[mcp.sse.files]]
+path = "${home}/suite-mcp.json"
+json = { mcpServers = { "${server}" = { type = "sse", url = "${server_url}" } } }
+
+# The interactive UI.
+[tui]
+args = ["--model", "${model}", "--dangerously-skip-permissions"]
+
+[native.shell]
+name = "Bash"
+arguments = { command = "${command}" }
+[native.read]
+name = "Read"
+arguments = { file_path = "${path}" }
+
+[native.write]
+name = "Write"
+arguments = { file_path = "${path}", content = "${content}" }
+
+[native.edit]
+name = "Edit"
+arguments = { file_path = "${path}", old_string = "${old}", new_string = "${new}" }
+
+[native.subagent]
+name = "Agent"
+arguments = { description = "Suite sub-task", prompt = "${prompt}", subagent_type = "general-purpose" }
+[settings.continue]
+args = ["--continue"]
+[settings.effort]
+args = ["--effort", "${value}"]
+# Its default permission mode: it asks before each command it has no rule for.
+[settings.normal-mode]
+base_args = ["--print", "--model", "${model}", "--permission-mode", "default"]
+[settings.system-prompt]
+args = ["--append-system-prompt", "${value}"]
+# Plan mode: the agent may read, not change anything.
+[settings.read-only]
+base_args = ["--print", "--model", "${model}", "--permission-mode", "plan"]
+
+[settings.headers]
+environment = { ANTHROPIC_CUSTOM_HEADERS = "X-Suite-Header: ${value}" }
+
+# A workspace the user has not trusted: the base files trust it.
+[[settings.untrusted.files]]
+path = "${home}/.claude.json"
+merge = true
+json = { projects = { "${workspace}" = { hasTrustDialogAccepted = false } } }
+# The project's own MCP config, as a cloned repository can hold it.
+[[settings.workspace-mcp.files]]
+path = "${workspace}/.mcp.json"
+json = { mcpServers = { "${value}" = { command = "${python}", args = ["${fixture}", "mcp", "${fixture_dir}", "${value}"] } } }
+# The user trusts the workspace and approves its server.
+[[settings.workspace-trust.files]]
+path = "${home}/.claude.json"
+merge = true
+json = { projects = { "${workspace}" = { hasTrustDialogAccepted = true, enabledMcpjsonServers = ["${value}"] } } }
+
+# Machine-readable output, for scripts: cli.json judges it.
+[settings.json]
+args = ["--output-format", "stream-json", "--verbose"]

@@ -1,0 +1,102 @@
+name = "omp"
+repo = "https://github.com/can1357/oh-my-pi"
+version = "19.1.1"
+command = ["omp"]
+instructions = ["AGENTS.md"]  # What the agent reads from the workspace.
+input = "stdin"
+args = ["--print", "--model", "suite/${model}", "--approval-mode", "yolo", "--no-extensions", "--no-skills", "--no-rules", "--no-lsp"]
+
+[install]  # The image: the official installer, frozen in installers/ (see images.py).
+installer = "https://omp.sh/install"
+command = 'curl -fsSL ${installers}/omp.sh | sh -s -- --binary --ref v${version}'
+
+[environment]
+PI_OFFLINE = "1"
+PI_TELEMETRY = "0"
+
+[apis.chat.variables]
+api = "openai-completions"
+api_base = "${provider_url}/v1"
+[apis.responses.variables]
+api = "openai-responses"
+api_base = "${provider_url}/v1"
+[apis.anthropic.variables]
+api = "anthropic-messages"
+api_base = "${provider_url}"
+
+[[files]]
+path = "${home}/.omp/agent/config.yml"
+json = { startup = { setupWizard = false, checkUpdate = false }, marketplace = { autoUpdate = "off" }, modelRoles = { default = "suite/${model}" }, tools = { approvalMode = "yolo" } }
+[[files]]
+path = "${home}/.omp/agent/models.yml"
+json = { providers = { suite = { baseUrl = "${api_base}", api = "${api}", auth = "apiKey", apiKey = "SUITE_API_KEY", models = [{ id = "${model}", reasoning = true, input = ["text", "image"], contextWindow = "${context_window}", maxTokens = "${max_output_tokens}" }, { id = "${model_b}", reasoning = true, input = ["text", "image"], contextWindow = "${context_window}", maxTokens = "${max_output_tokens}" }] } } }
+
+[[mcp.stdio.files]]
+path = "${home}/.omp/agent/mcp.json"
+json = { mcpServers = { "${server}" = { type = "stdio", command = "${python}", args = ["${fixture}", "mcp", "${fixture_dir}", "${server}"] } } }
+[[mcp.http.files]]
+path = "${home}/.omp/agent/mcp.json"
+json = { mcpServers = { "${server}" = { type = "http", url = "${server_url}" } } }
+[[mcp.sse.files]]
+path = "${home}/.omp/agent/mcp.json"
+json = { mcpServers = { "${server}" = { type = "sse", url = "${server_url}" } } }
+
+# omp mounts MCP tools as commands of its bash tool, listed by name in the
+# system prompt. A bare `-` reads the JSON arguments from stdin, here a quoted
+# heredoc, so the shell changes none of their text.
+[mcp.route]
+tool = "bash"
+find = '(mcp__[\w-]*suite_fixture)\b[^\n]*Server ${server}\.'
+arguments = { command = "${route} - <<'SUITE_ARGUMENTS'\n${arguments_json}\nSUITE_ARGUMENTS", i = "Run the suite fixture" }
+
+# The interactive UI.
+[tui]
+args = ["--model", "suite/${model}", "--approval-mode", "yolo", "--no-extensions", "--no-skills", "--no-rules", "--no-lsp"]
+
+[native.shell]
+name = "bash"
+arguments = { command = "${command}", i = "Run the suite fixture" }
+[native.read]
+name = "read"
+arguments = { path = "${path}", i = "Read the suite file" }
+
+# Its edit tool takes hashline patches, not old and new text.
+[native.write]
+name = "write"
+arguments = { path = "${path}", content = "${content}", i = "Write the suite file" }
+
+# A task runs in the background; `wait` blocks until its result comes.
+[[native.subagent]]
+name = "task"
+arguments = { i = "Suite sub-task", context = "The suite tests sub-agents.", tasks = [{ task = "${prompt}", solutionSpace = "Do exactly what the task says.", name = "suite" }] }
+[[native.subagent]]
+name = "wait"
+arguments = { i = "wait for the suite sub-task" }
+[settings.continue]
+args = ["--continue"]
+[[settings.temperature.files]]
+path = "${home}/.omp/agent/config.yml"
+json = { temperature = "${value}" }
+[settings.effort]
+args = ["--thinking", "${value}"]
+# It asks before each action.
+[settings.normal-mode]
+base_args = ["--print", "--model", "suite/${model}", "--approval-mode", "always-ask", "--no-extensions", "--no-skills", "--no-rules", "--no-lsp"]
+[settings.system-prompt]
+args = ["--append-system-prompt=${value}"]
+# Only the read-only tools.
+[settings.read-only]
+args = ["--tools=read,grep"]
+
+[[settings.headers.files]]
+path = "${home}/.omp/agent/models.yml"
+json = { providers = { suite = { headers = { "X-Suite-Header" = "${value}" } } } }
+
+# The project's own MCP config, as a cloned repository can hold it.
+[[settings.workspace-mcp.files]]
+path = "${workspace}/.omp/mcp.json"
+json = { mcpServers = { "${value}" = { type = "stdio", command = "${python}", args = ["${fixture}", "mcp", "${fixture_dir}", "${value}"] } } }
+
+# Machine-readable output, for scripts: cli.json judges it.
+[settings.json]
+args = ["--mode", "json"]

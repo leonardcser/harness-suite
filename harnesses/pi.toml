@@ -1,0 +1,113 @@
+name = "pi"
+repo = "https://github.com/earendil-works/pi"
+version = "1.6.0"
+command = ["pi"]
+instructions = ["AGENTS.md"]  # What the agent reads from the workspace.
+input = "stdin"
+args = ["-p", "--provider", "suite", "--model", "${model}", "--offline", "--no-extensions", "--no-skills", "--no-prompt-templates"]
+
+[install]  # The image: the official installer, frozen in installers/ (see images.py).
+installer = "https://pi.dev/install.sh"
+command = [  # Node, then pi.
+    "curl -fsSL https://nodejs.org/dist/v22.23.4/node-v22.23.4-linux-x64.tar.xz -o /tmp/node-v22.23.4-linux-x64.tar.xz",
+    "curl -fsSL https://nodejs.org/dist/v22.23.4/SHASUMS256.txt -o /tmp/node-sums",
+    "(cd /tmp && grep ' node-v22.23.4-linux-x64.tar.xz$$' node-sums | sha256sum -c -)",
+    "tar -xJf /tmp/node-v22.23.4-linux-x64.tar.xz -C /usr/local --strip-components=1",
+    "rm /tmp/node-v22.23.4-linux-x64.tar.xz /tmp/node-sums",
+    "curl -fsSL ${installers}/pi.sh | PI_INSTALLER_API_BASE=${installers}/pi sh",
+]
+
+[install.files]  # The release metadata that the installer reads, from ${installers}/pi.
+"pi/latest" = "https://pi.dev/api/installer/releases/${version}"
+"pi/${version}/package.json" = "https://pi.dev/api/installer/releases/${version}/package.json"
+"pi/${version}/package-lock.json" = "https://pi.dev/api/installer/releases/${version}/package-lock.json"
+
+[environment]
+PI_OFFLINE = "1"
+PI_TELEMETRY = "0"
+
+[apis.chat.variables]
+api = "openai-completions"
+api_base = "${provider_url}/v1"
+[apis.responses.variables]
+api = "openai-responses"
+api_base = "${provider_url}/v1"
+[apis.anthropic.variables]
+api = "anthropic-messages"
+api_base = "${provider_url}"
+
+[[files]]
+path = "${home}/.pi/agent/models.json"
+json = { providers = { suite = { baseUrl = "${api_base}", api = "${api}", apiKey = "suite-placeholder", models = [{ id = "${model}", reasoning = true, input = ["text", "image"], contextWindow = "${context_window}", maxTokens = "${max_output_tokens}" }, { id = "${model_b}", reasoning = true, input = ["text", "image"], contextWindow = "${context_window}", maxTokens = "${max_output_tokens}" }] } } }
+[[files]]
+path = "${home}/.pi/agent/settings.json"
+json = { defaultProjectTrust = "always", defaultProvider = "suite", defaultModel = "${model}" }
+
+[mcp]
+args = ["--extension", "builtin:mcp"]
+[[mcp.stdio.files]]
+path = "${home}/.pi/agent/mcp.json"
+json = { mcpServers = { "${server}" = { command = "${python}", args = ["${fixture}", "mcp", "${fixture_dir}", "${server}"], toolExposure = { suite_fixture = "direct" } } } }
+[[mcp.http.files]]
+path = "${home}/.pi/agent/mcp.json"
+json = { mcpServers = { "${server}" = { url = "${server_url}", toolExposure = { suite_fixture = "direct" } } } }
+
+# The interactive UI.
+[tui]
+args = ["--provider", "suite", "--model", "${model}", "--offline", "--no-extensions", "--no-skills", "--no-prompt-templates"]
+
+[native.shell]
+name = "bash"
+arguments = { command = "${command}" }
+[native.read]
+name = "read"
+arguments = { path = "${path}" }
+
+[native.write]
+name = "write"
+arguments = { path = "${path}", content = "${content}" }
+
+[native.edit]
+name = "edit"
+arguments = { path = "${path}", edits = [{ oldText = "${old}", newText = "${new}" }] }
+
+[settings.continue]
+args = ["--continue"]
+[settings.effort]
+args = ["--thinking", "${value}"]
+
+[settings.system-prompt]
+args = ["--append-system-prompt", "${value}"]
+# pi has no read-only mode; its read-only tools stand for one.
+[settings.read-only]
+args = ["--tools", "read,grep,find,ls"]
+
+[[settings.headers.files]]
+path = "${home}/.pi/agent/models.json"
+json = { providers = { suite = { headers = { "X-Suite-Header" = "${value}" } } } }
+
+# A workspace the user has not trusted: pi's own default trust, `ask`, where
+# the base files trust every workspace.
+[[settings.untrusted.files]]
+path = "${home}/.pi/agent/settings.json"
+json = { defaultProjectTrust = "ask" }
+# The project's own MCP config, as a cloned repository can hold it, with
+# pi's MCP extension loaded to read it.
+[settings.workspace-mcp]
+args = ["--extension", "builtin:mcp"]
+[[settings.workspace-mcp.files]]
+path = "${workspace}/.pi/mcp.json"
+json = { mcpServers = { "${value}" = { command = "${python}", args = ["${fixture}", "mcp", "${fixture_dir}", "${value}"] } } }
+# The user trusts the workspace.
+[[settings.workspace-trust.files]]
+path = "${home}/.pi/agent/settings.json"
+json = { defaultProjectTrust = "always" }
+
+# Machine-readable output, for scripts: cli.json judges it.
+[settings.json]
+args = ["--mode", "json"]
+
+[unsupported]
+normal-mode = "pi has no permission modes: it runs every tool call"
+mcp-sse = "pi rejects the older SSE transport (docs/mcp.md)"
+subagent = "pi has no sub-agents"

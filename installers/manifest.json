@@ -1,0 +1,87 @@
+{
+  "claude-code": {
+    "files": {
+      "claude-code.sh": {
+        "bytes": 9822,
+        "sha256": "2c5506d110560bf618bbe88f678f2c2a0047c86a9c6585fc84976120b1de0b44",
+        "url": "https://claude.ai/install.sh"
+      }
+    },
+    "version": "2.1.325"
+  },
+  "codex": {
+    "files": {
+      "codex.sh": {
+        "bytes": 43352,
+        "sha256": "b698d8eb50c0fbe0214ea57b5bf2af439054108404c6d2b872989db02f4bd574",
+        "url": "https://chatgpt.com/codex/install.sh"
+      }
+    },
+    "version": "0.169.0"
+  },
+  "fx": {
+    "files": {
+      "fx.sh": {
+        "bytes": 4468,
+        "sha256": "254c2d4410678aa28acb17941f5447b34b312f829893d4261bb4d713508f924f",
+        "url": "https://fx.sh/setup.sh"
+      }
+    },
+    "version": "0.0.17"
+  },
+  "omp": {
+    "files": {
+      "omp.sh": {
+        "bytes": 15790,
+        "sha256": "9d8aea7105ab30b46f048c3ba9216ae9f92375491b883e510059069dbf968a5f",
+        "url": "https://omp.sh/install"
+      }
+    },
+    "version": "18.20.2"
+  },
+  "opencode": {
+    "files": {
+      "opencode.sh": {
+        "bytes": 16804,
+        "sha256": "b60226508704fc97d7b9d12ae6d4a6f819dfe02b22c190a0425c14ef632b056b",
+        "url": "https://opencode.ai/v2/install"
+      }
+    },
+    "version": "2.3.0"
+  },
+  "pi": {
+    "files": {
+      "pi.sh": {
+        "bytes": 56130,
+        "sha256": "ff4ed7b1ea1c058f33249a44093863b50cf95224ab4ff654e722fcbbbdaa31df",
+        "url": "https://pi.dev/install.sh"
+      },
+      "pi/1.5.2/package-lock.json": {
+        "bytes": 52064,
+        "sha256": "57e3b475e52f630cf903f73b0d2a02c405875af61ce4a845f481dcc798f58005",
+        "url": "https://pi.dev/api/installer/releases/1.5.2/package-lock.json"
+      },
+      "pi/1.5.2/package.json": {
+        "bytes": 317,
+        "sha256": "6c433244d03aa280f1aa298035ba59f54afd0c486566771ef83cc5aef318c4cc",
+        "url": "https://pi.dev/api/installer/releases/1.5.2/package.json"
+      },
+      "pi/latest": {
+        "bytes": 3223,
+        "sha256": "f2c2882f0fa5a409d4be2e3194abff6fd11a48b0f344bd1673b1e08f49464f0e",
+        "url": "https://pi.dev/api/installer/releases/1.5.2"
+      }
+    },
+    "version": "1.5.2"
+  },
+  "smelt": {
+    "files": {
+      "smelt.sh": {
+        "bytes": 3135,
+        "sha256": "fde8dbe9037bfd5bdfb1f9ff9d10cd13281b19ae8a0d6b47843f2cf64eec1191",
+        "url": "https://smeltagent.dev/install.sh"
+      }
+    },
+    "version": "0.8.0"
+  }
+}

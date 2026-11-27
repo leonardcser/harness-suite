@@ -1,0 +1,118 @@
+name = "opencode"
+repo = "https://github.com/anomalyco/opencode"
+version = "2.4.1"
+command = ["opencode"]
+instructions = ["AGENTS.md"]  # What the agent reads from the workspace.
+input = "stdin"
+args = ["run", "--standalone", "--auto", "--model", "suite/${model}"]
+
+[install]  # The image: the official installer, frozen in installers/ (see images.py).
+installer = "https://opencode.ai/v2/install"
+command = 'curl -fsSL ${installers}/opencode.sh | bash -s -- --version ${version}'
+
+[variables]
+permission = "allow"
+
+[environment]
+OPENCODE_CONFIG = "${home}/opencode.json"
+OPENCODE_DISABLE_AUTOUPDATE = "1"
+OPENCODE_DISABLE_MODELS_FETCH = "1"
+
+[apis.chat.variables]
+package = "@opencode/ai/providers/openai-compatible"
+[apis.responses.variables]
+package = "@opencode/ai/providers/openai-compatible-responses"
+[apis.anthropic.variables]
+package = "@opencode/ai/providers/anthropic-compatible"
+
+[[files]]
+path = "${home}/opencode.json"
+text = '''
+{
+  "model": "suite/${model}",
+  "enabled_providers": ["suite"],
+  "permissions": [{"action": "*", "resource": "*", "effect": "${permission}"}],
+  "providers": {"suite": {"package": ${package_json}, "settings": {"baseURL": "${provider_url}/v1", "apiKey": "suite-placeholder"},
+    "models": {
+      ${model_json}: {"limit": {"context": ${context_window}, "output": ${max_output_tokens}}, "capabilities": {"tools": true, "input": ["text", "image"], "reasoning": {"supported": true, "effort": ["low", "medium", "high"]}}},
+      ${model_b_json}: {"limit": {"context": ${context_window}, "output": ${max_output_tokens}}, "capabilities": {"tools": true, "input": ["text", "image"], "reasoning": {"supported": true, "effort": ["low", "medium", "high"]}}}
+    }}}
+}
+'''
+
+[[mcp.stdio.files]]
+path = "${workspace}/opencode.json"
+json = { mcp = { servers = { "${server}" = { type = "local", command = ["${python}", "${fixture}", "mcp", "${fixture_dir}", "${server}"], codemode = false } } } }
+[[mcp.http.files]]
+path = "${workspace}/opencode.json"
+json = { mcp = { servers = { "${server}" = { type = "remote", url = "${server_url}", codemode = false } } } }
+
+# The interactive UI.
+[tui]
+args = []
+# The TUI shows its built-in default model until it has read the config.
+ready = "suite-model"
+# The TUI starts a background service on a fixed port; parallel cases need their own.
+[[tui.files]]
+path = "${home}/.config/opencode/service.json"
+json = { port = "${free_port}" }
+
+[native.shell]
+name = "shell"
+arguments = { command = "${command}" }
+[native.read]
+name = "read"
+arguments = { path = "${path}" }
+
+[native.write]
+name = "write"
+arguments = { path = "${path}", content = "${content}" }
+
+[native.edit]
+name = "edit"
+arguments = { path = "${path}", oldString = "${old}", newString = "${new}" }
+
+[native.subagent]
+name = "subagent"
+arguments = { agent = "general", description = "Suite sub-task", prompt = "${prompt}" }
+[settings.continue]
+args = ["--continue"]
+# `opencode debug agents` shows this as the build agent's request body,
+# {"temperature": 0.3}, yet `opencode run` sends no temperature.
+[[settings.temperature.files]]
+path = "${workspace}/opencode.json"
+json = { agent = { build = { temperature = "${value}" } } }
+[settings.effort]
+base_args = ["run", "--standalone", "--auto", "--model", "suite/${model}#${value}"]
+
+# It asks before each action.
+[settings.normal-mode]
+base_args = ["run", "--standalone", "--model", "suite/${model}"]
+variables = { permission = "ask" }
+
+[[settings.system-prompt.files]]
+path = "${workspace}/suite-system.md"
+text = "${value}"
+[[settings.system-prompt.files]]
+path = "${workspace}/opencode.json"
+json = { instructions = ["suite-system.md"] }
+# The plan agent may read, not change anything.
+[settings.read-only]
+base_args = ["run", "--standalone", "--agent", "plan", "--model", "suite/${model}"]
+variables = { permission = "ask" }
+
+[[settings.headers.files]]
+path = "${workspace}/opencode.json"
+json = { providers = { suite = { headers = { "X-Suite-Header" = "${value}" } } } }
+
+# The project's own MCP config, as a cloned repository can hold it.
+[[settings.workspace-mcp.files]]
+path = "${workspace}/opencode.json"
+json = { mcp = { servers = { "${value}" = { type = "local", command = ["${python}", "${fixture}", "mcp", "${fixture_dir}", "${value}"] } } } }
+
+# Machine-readable output, for scripts: cli.json judges it.
+[settings.json]
+args = ["--format", "json"]
+
+[unsupported]
+mcp-sse = "opencode's remote servers use Streamable HTTP only, with no SSE fallback"

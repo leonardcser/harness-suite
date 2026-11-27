@@ -1,0 +1,105 @@
+name = "codex"
+repo = "https://github.com/openai/codex"
+tag_prefix = "rust-v"  # Before the version in a release tag.
+version = "0.172.0"
+command = ["codex"]
+instructions = ["AGENTS.md"]  # What the agent reads from the workspace.
+input = "stdin"
+args = ["exec", "--skip-git-repo-check", "--dangerously-bypass-approvals-and-sandbox", "-m", "${model}"]
+
+[install]  # The image: the official installer, frozen in installers/ (see images.py).
+installer = "https://chatgpt.com/codex/install.sh"
+command = 'curl -fsSL ${installers}/codex.sh | CODEX_NON_INTERACTIVE=1 sh -s -- --release ${version}'
+
+[environment]
+CODEX_HOME = "${home}/.codex"
+
+[apis.responses]
+[[files]]
+path = "${home}/.codex/config.toml"
+text = '''
+model = "${model}"
+model_provider = "suite"
+model_context_window = ${context_window}
+check_for_update_on_startup = false
+[model_providers.suite]
+name = "Suite"
+base_url = "${provider_url}/v1"
+wire_api = "responses"
+env_key = "SUITE_API_KEY"
+'''
+
+[[mcp.stdio.files]]
+path = "${home}/.codex/config.toml"
+append = true
+text = '''
+[mcp_servers.${server}]
+command = ${python_json}
+args = [${fixture_json}, "mcp", ${fixture_dir_json}, ${server_json}]
+'''
+[[mcp.http.files]]
+path = "${home}/.codex/config.toml"
+append = true
+text = '''
+[mcp_servers.${server}]
+url = ${server_url_json}
+'''
+
+# The interactive UI.
+[tui]
+args = ["--dangerously-bypass-approvals-and-sandbox", "-m", "${model}"]
+
+[native.shell]
+name = "exec_command"
+arguments = { cmd = "${command}" }
+
+# A sub-agent starts with spawn_agent, which gives its ID to wait for.
+[[native.subagent]]
+name = "multi_agent_v1.spawn_agent"
+arguments = { message = "${prompt}" }
+[[native.subagent]]
+name = "multi_agent_v1.wait_agent"
+arguments = { targets = ["${found}"], timeout_ms = 60000 }
+find = '"(?:agent_)?id"\s*:\s*"([^"]+)"'
+[settings.continue]
+base_args = ["exec", "resume", "--last", "--skip-git-repo-check", "--dangerously-bypass-approvals-and-sandbox", "-m", "${model}", "-"]
+# Its default approvals and sandbox.
+[settings.normal-mode]
+base_args = ["exec", "--skip-git-repo-check", "-m", "${model}"]
+[settings.effort]
+args = ["-c", "model_reasoning_effort=\"${value}\""]
+[settings.system-prompt]
+args = ["-c", "developer_instructions=${value_json}"]
+
+# The provider's `http_headers` go with every model request.
+[settings.headers]
+args = ["-c", "model_providers.suite.http_headers={ X-Suite-Header = ${value_json} }"]
+
+# The sandbox lets commands read, not write.
+[settings.read-only]
+base_args = ["exec", "--skip-git-repo-check", "--sandbox", "read-only", "-m", "${model}", "-"]
+
+# The project's own MCP config, as a cloned repository can hold it.
+[[settings.workspace-mcp.files]]
+path = "${workspace}/.codex/config.toml"
+text = '''
+[mcp_servers.${value}]
+command = ${python_json}
+args = [${fixture_json}, "mcp", ${fixture_dir_json}, ${value_json}]
+'''
+# The user trusts the workspace, so codex loads its project config.
+[[settings.workspace-trust.files]]
+path = "${home}/.codex/config.toml"
+append = true
+text = '''
+[projects."${workspace}"]
+trust_level = "trusted"
+'''
+
+# Machine-readable output, for scripts: cli.json judges it.
+[settings.json]
+args = ["--json"]
+
+[unsupported]
+mcp-list-changed = "codex refreshes its tools on tools/list_changed only behind the feature mcp_tool_list_changed, under development and off by default (codex-rs/features/src/lib.rs)"
+mcp-sse = "codex connects MCP servers over stdio or Streamable HTTP only"

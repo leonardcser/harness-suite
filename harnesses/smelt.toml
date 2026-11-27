@@ -1,0 +1,90 @@
+name = "smelt"
+repo = "https://github.com/leonardcser/smelt"
+version = "0.8.1"
+command = ["smelt"]
+instructions = ["AGENTS.md"]  # What the agent reads from the workspace.
+args = ["--headless", "--config", "${home}/.config/smelt/init.lua", "--model", "suite/${model}", "--mode", "yolo", "--prompt-file", "${prompt_file}"]
+
+[install]  # The image: the official installer, frozen in installers/ (see images.py).
+installer = "https://smeltagent.dev/install.sh"
+command = 'curl -fsSL ${installers}/smelt.sh | SMELT_VERSION=v${version} sh'
+
+[apis.chat.variables]
+provider_type = "openai-compatible"
+api_base = "${provider_url}/v1"
+[apis.responses.variables]
+provider_type = "openai"
+api_base = "${provider_url}/v1"
+[apis.anthropic.variables]
+provider_type = "anthropic-compatible"
+api_base = "${provider_url}/v1"
+
+[[files]]
+path = "${home}/.config/smelt/init.lua"
+text = '''
+local function model(name)
+  return { name = name, context_window = ${context_window}, max_tokens = ${max_output_tokens}, supports_reasoning = true, input_modalities = { "text", "image", "pdf" } }
+end
+smelt.provider.register("suite", { type = ${provider_type_json}, api_base = ${api_base_json}, api_key_env = "SUITE_API_KEY", models = { model(${model_json}), model(${model_b_json}) } })
+smelt.defaults.set({ model = "suite/" .. ${model_json}, mode = "yolo" })
+smelt.settings.autoupgrade = "off"
+'''
+
+[[mcp.stdio.files]]
+path = "${home}/.config/smelt/init.lua"
+append = true
+text = '''
+smelt.mcp.register(${server_json}, { command = ${python_json}, args = { ${fixture_json}, "mcp", ${fixture_dir_json}, ${server_json} } })
+'''
+
+# The interactive UI.
+[tui]
+args = ["--config", "${home}/.config/smelt/init.lua", "--model", "suite/${model}", "--mode", "yolo"]
+
+[native.shell]
+name = "bash"
+arguments = { command = "${command}" }
+[native.read]
+name = "read_file"
+arguments = { file_path = "${path}" }
+
+[native.write]
+name = "write_file"
+arguments = { file_path = "${path}", content = "${content}" }
+
+[native.edit]
+name = "edit_file"
+arguments = { file_path = "${path}", old_string = "${old}", new_string = "${new}" }
+
+[settings.temperature]
+args = ["--temperature", "${value}"]
+[settings.effort]
+args = ["--reasoning-effort", "${value}"]
+# Replaces smelt's own system prompt.
+# Its normal mode, which asks before it acts.
+[settings.normal-mode]
+base_args = ["--headless", "--config", "${home}/.config/smelt/init.lua", "--model", "suite/${model}", "--mode", "normal", "--prompt-file", "${prompt_file}"]
+[settings.system-prompt]
+args = ["--system-prompt", "${value}"]
+
+[settings.read-only]
+base_args = ["--headless", "--config", "${home}/.config/smelt/init.lua", "--model", "suite/${model}", "--mode", "plan", "--prompt-file", "${prompt_file}"]
+
+# The project's own MCP config, as a cloned repository can hold it.
+[[settings.workspace-mcp.files]]
+path = "${workspace}/.smelt/init.lua"
+text = '''
+smelt.mcp.register(${value_json}, { command = ${python_json}, args = { ${fixture_json}, "mcp", ${fixture_dir_json}, ${value_json} } })
+'''
+
+# Machine-readable output, for scripts: cli.json judges it.
+[settings.json]
+args = ["--format", "json"]
+
+[unsupported]
+mcp-list-changed = "smelt does not handle notifications/tools/list_changed: its MCP client lists the tools once"
+headers = "smelt sends no extra request headers: its provider config takes only type, api_base, api_key_env and models"
+mcp-http = "smelt only starts local MCP servers (smelt.mcp.Config: type \"local\")"
+mcp-sse = "smelt only starts local MCP servers (smelt.mcp.Config: type \"local\")"
+continue = "smelt does not save headless sessions, and ignores --resume there"
+subagent = "smelt has no sub-agent tool"
